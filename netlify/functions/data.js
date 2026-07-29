@@ -62,7 +62,7 @@ exports.handler = async (event) => {
     return { statusCode: 500, headers, body: JSON.stringify({ error: "Database connection failed" }) };
   }
 
-  const collection = client.db("celltrace").collection("backups");
+  const collection = client.db("CellTrace").collection("backups");
 
   try {
     if (event.httpMethod === "GET") {
