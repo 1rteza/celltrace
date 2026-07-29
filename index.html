@@ -20,6 +20,8 @@
   @keyframes scopeDrift { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
   @keyframes pulseGlow { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }
   @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 </head>
 <body>
@@ -368,6 +370,14 @@ const nowLocal = () => { const d = new Date(); d.setSeconds(0,0); d.setMinutes(d
 const toLocalInput = (iso) => { const d = new Date(iso); d.setSeconds(0,0); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); };
 const fmtDate = (iso) => { if(!iso) return "—"; const d=new Date(iso); if(isNaN(d.getTime())) return "—"; return d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); };
 const fmtShort = (iso) => { if(!iso) return "—"; const d=new Date(iso); if(isNaN(d.getTime())) return "—"; return d.toLocaleDateString(undefined,{month:"short",day:"numeric"}); };
+const dayLabel = (iso) => {
+  const d = new Date(iso); d.setHours(0,0,0,0);
+  const now = new Date(); now.setHours(0,0,0,0);
+  const diffDays = Math.round((now - d) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month:"long", day:"numeric", year: d.getFullYear()!==now.getFullYear() ? "numeric" : undefined });
+};
 
 // ---- storage: plain localStorage, no network round-trip ----------------
 const storage = {
@@ -627,10 +637,115 @@ function SectionTitle({ icon, children }){
 function EmptyChart({ text }){ return <div style={{ padding:"30px 4px", color:C.textFaint, fontSize:12.5, textAlign:"center" }}>{text}</div>; }
 function Tag({ icon, text }){ return <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, color:C.textMuted, background:C.panel2, borderRadius:6, padding:"2px 7px" }}>{icon && <Icon name={icon} size={10}/>}{text}</span>; }
 
+function Skeleton({ width="100%", height=14, radius=8, style }){
+  return <div style={{ width, height, borderRadius:radius, background:`linear-gradient(90deg, ${C.panel2} 25%, ${C.border} 37%, ${C.panel2} 63%)`, backgroundSize:"400% 100%", animation:"shimmer 1.4s ease infinite", ...style }}/>;
+}
+
+function DashboardSkeleton(){
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg, padding:18 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:26 }}>
+        <Skeleton width={110} height={18}/>
+        <Skeleton width={80} height={30} radius={9}/>
+      </div>
+      <div style={{ display:"flex", justifyContent:"center", margin:"10px 0 26px" }}>
+        <Skeleton width={168} height={168} radius={999}/>
+      </div>
+      <div style={{ display:"flex", gap:12, marginBottom:14 }}>
+        <Skeleton height={56} style={{ flex:1 }}/>
+        <Skeleton height={56} style={{ flex:1 }}/>
+        <Skeleton height={56} style={{ flex:1 }}/>
+      </div>
+      <Skeleton height={150} radius={14}/>
+    </div>
+  );
+}
+
+function ConfirmDialog({ title, message, confirmLabel="Delete", onConfirm, onCancel }){
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(6,8,11,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:70, padding:20 }} onClick={onCancel}>
+      <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:16, padding:20, maxWidth:340, width:"100%" }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+          <Icon name="alertTriangle" size={16} color={C.red}/>
+          <h3 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:16, fontWeight:600, margin:0, color:C.text }}>{title}</h3>
+        </div>
+        <p style={{ fontSize:13, color:C.textMuted, lineHeight:1.5, marginBottom:18 }}>{message}</p>
+        <div style={{ display:"flex", gap:8 }}>
+          <Button variant="ghost" onClick={onCancel} style={{ flex:1, justifyContent:"center" }}>Cancel</Button>
+          <Button variant="danger" onClick={onConfirm} style={{ flex:1, justifyContent:"center" }}>{confirmLabel}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToastStack({ toasts }){
+  if (!toasts.length) return null;
+  return (
+    <div style={{ position:"fixed", bottom:90, left:0, right:0, display:"flex", flexDirection:"column", alignItems:"center", gap:8, zIndex:80, pointerEvents:"none", padding:"0 16px" }}>
+      {toasts.map(t=>(
+        <div key={t.id} style={{ background:C.panel2, border:`1px solid ${C.border}`, borderRadius:10, padding:"9px 16px", fontSize:13, color:C.text, boxShadow:"0 8px 24px rgba(0,0,0,0.4)", display:"flex", alignItems:"center", gap:8, animation:"toastIn .25s ease", maxWidth:340 }}>
+          <Icon name={t.icon||"check"} size={14} color={t.color||C.teal}/>
+          <span>{t.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ---- main app -------------------------------------------------------------
+function PrivacyModal({ onClose }){
+  return (
+    <Modal title="Privacy & terms" onClose={onClose}>
+      <div style={{ display:"flex", flexDirection:"column", gap:14, fontSize:13, color:C.textMuted, lineHeight:1.6 }}>
+        <p>CellTrace is a small independent project, not a company product. Here's a plain-language summary of how it handles your data — not a formal legal document.</p>
+        <div>
+          <div style={{ color:C.text, fontWeight:600, fontSize:13, marginBottom:4 }}>What's stored</div>
+          Your Google account email (for sign-in only), the device names and capacities you add, and the battery readings you log — timestamp, percentage, and any optional notes you write in.
+        </div>
+        <div>
+          <div style={{ color:C.text, fontWeight:600, fontSize:13, marginBottom:4 }}>Where it lives</div>
+          Sign-in runs through Google Firebase Authentication. Your synced data lives in a MongoDB Atlas database. Both are standard managed cloud services.
+        </div>
+        <div>
+          <div style={{ color:C.text, fontWeight:600, fontSize:13, marginBottom:4 }}>What it's used for</div>
+          Only to run the app for you: showing your dashboard and keeping it in sync across your own devices. Nothing is sold, shared with third parties, or used for advertising.
+        </div>
+        <div>
+          <div style={{ color:C.text, fontWeight:600, fontSize:13, marginBottom:4 }}>Who can see it</div>
+          Only your own signed-in account can access your data through the app. It isn't publicly visible or shared between users.
+        </div>
+        <div>
+          <div style={{ color:C.text, fontWeight:600, fontSize:13, marginBottom:4 }}>Deleting your data</div>
+          You can delete individual readings or devices anytime from inside the app. To remove everything permanently, contact the developer directly.
+        </div>
+        <p style={{ fontSize:11.5, color:C.textFaint }}>Please avoid logging sensitive personal information beyond battery readings and device names.</p>
+      </div>
+    </Modal>
+  );
+}
+
+function LandingPreview(){
+  return (
+    <div style={{ position:"relative", width:"100%", maxWidth:360, marginBottom:22 }}>
+      <div style={{ position:"absolute", inset:0, overflow:"hidden", borderRadius:18, opacity:0.7 }}><ScopeTrace/></div>
+      <div style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"center", gap:22, padding:"18px 10px" }}>
+        <Gauge value={91} size={104}/>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:96 }}>
+          <Skeleton height={26} width="100%" style={{ animation:"none", background:C.tealDim, opacity:0.5 }}/>
+          <Skeleton height={10} width="80%" style={{ animation:"none", background:C.borderSoft }}/>
+          <Skeleton height={10} width="60%" style={{ animation:"none", background:C.borderSoft }}/>
+          <Skeleton height={34} width="100%" style={{ animation:"none", background:C.panel2 }}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LoginScreen(){
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const signIn = async () => {
     setBusy(true);
@@ -651,14 +766,33 @@ function LoginScreen(){
     }
   };
 
+  const features = [
+    { icon:"activity", text:"See real degradation trends, not guesses" },
+    { icon:"layers", text:"Compare multiple devices side-by-side" },
+    { icon:"smartphone", text:"Synced automatically between your devices" },
+  ];
+
   return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", color:C.text, fontFamily:"'Inter',sans-serif", background:`radial-gradient(900px circle at 15% -8%, rgba(69,217,195,0.09), transparent 55%), radial-gradient(700px circle at 100% 0%, rgba(108,155,240,0.08), transparent 50%), ${C.bg}`, padding:20 }}>
+    <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:C.text, fontFamily:"'Inter',sans-serif", background:`radial-gradient(900px circle at 15% -8%, rgba(69,217,195,0.09), transparent 55%), radial-gradient(700px circle at 100% 0%, rgba(108,155,240,0.08), transparent 50%), ${C.bg}`, padding:20 }}>
+      <LandingPreview/>
       <div style={{ width:"100%", maxWidth:360, background:C.panel, border:`1px solid ${C.border}`, borderRadius:18, padding:"32px 28px", textAlign:"center" }}>
         <div style={{ width:52, height:52, borderRadius:14, margin:"0 auto 18px", background:`linear-gradient(135deg, ${C.tealDim}, ${C.panel2})`, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <svg width="26" height="26" viewBox="0 0 24 24"><polygon points="13,2 3,14 10,14 9,22 21,8 12,8" fill={C.teal}/></svg>
         </div>
         <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:22, fontWeight:700, letterSpacing:0.5, marginBottom:6 }}>CELLTRACE</div>
-        <p style={{ fontSize:13, color:C.textMuted, marginBottom:26, lineHeight:1.5 }}>Sign in to track your devices' battery health and keep it synced everywhere.</p>
+        <p style={{ fontSize:13, color:C.textMuted, marginBottom:20, lineHeight:1.5 }}>Track how your phone's battery is really aging — logged by you, analyzed automatically.</p>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24, textAlign:"left" }}>
+          {features.map((f,i)=>(
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:8, background:C.panel2, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <Icon name={f.icon} size={13} color={C.teal}/>
+              </div>
+              <span style={{ fontSize:12.5, color:C.textMuted, lineHeight:1.4 }}>{f.text}</span>
+            </div>
+          ))}
+        </div>
+
         <button onClick={signIn} disabled={busy} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:"#fff", color:"#1F1F1F", border:"none", borderRadius:10, padding:"11px 16px", fontSize:14, fontWeight:600, cursor:busy?"default":"pointer", opacity:busy?0.7:1 }}>
           <svg width="18" height="18" viewBox="0 0 48 48">
             <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/>
@@ -669,7 +803,9 @@ function LoginScreen(){
           {busy ? "Signing in…" : "Continue with Google"}
         </button>
         {error && <p style={{ fontSize:12, color:C.red, marginTop:14, lineHeight:1.5 }}>{error}</p>}
+        <button onClick={()=>setShowPrivacy(true)} style={{ background:"none", border:"none", color:C.textFaint, fontSize:11.5, cursor:"pointer", marginTop:18, textDecoration:"underline" }}>Privacy & terms</button>
       </div>
+      {showPrivacy && <PrivacyModal onClose={()=>setShowPrivacy(false)}/>}
     </div>
   );
 }
@@ -688,8 +824,9 @@ function AuthGate(){
 
   if (authState === "loading") {
     return (
-      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, color:C.textMuted, fontFamily:"'Inter',sans-serif", fontSize:13 }}>
-        Loading…
+      <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:C.bg, gap:14 }}>
+        <Skeleton width={52} height={52} radius={14}/>
+        <Skeleton width={120} height={14}/>
       </div>
     );
   }
@@ -739,6 +876,15 @@ function BatteryTracker({ user, onSignOut }){
   const [showBackup, setShowBackup] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle");
   const [cloudStatus, setCloudStatus] = useState("idle"); // idle | syncing | synced | offline | error
+  const [toasts, setToasts] = useState([]);
+  const [pendingDeleteEntry, setPendingDeleteEntry] = useState(null);
+  const [pendingDeleteDevice, setPendingDeleteDevice] = useState(null);
+
+  const pushToast = useCallback((message, opts={}) => {
+    const id = uid();
+    setToasts(t => [...t, { id, message, icon: opts.icon, color: opts.color }]);
+    setTimeout(() => setToasts(t => t.filter(x=>x.id!==id)), 2600);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -811,26 +957,34 @@ function BatteryTracker({ user, onSignOut }){
     }
   }, [data, dataKey, user]);
 
-  const addDevice = (device) => { persist(base=>({ ...base, devices:[...base.devices, device] })); setSelectedDeviceId(device.id); };
+  const addDevice = (device) => { persist(base=>({ ...base, devices:[...base.devices, device] })); setSelectedDeviceId(device.id); pushToast("Device added"); };
   const deleteDevice = (id) => {
     persist(base=>({ devices: base.devices.filter(d=>d.id!==id), entries: base.entries.filter(e=>e.deviceId!==id) }));
     if (selectedDeviceId===id) { const remaining=data.devices.filter(d=>d.id!==id); setSelectedDeviceId(remaining[0]?.id ?? null); }
+    pushToast("Device removed", { icon:"trash2", color:C.red });
   };
-  const addEntry = (entry) => persist(base=>({ ...base, entries:[...base.entries, entry] }));
-  const editEntry = (updated) => persist(base=>({ ...base, entries: base.entries.map(e=>e.id===updated.id?updated:e) }));
-  const deleteEntry = (id) => persist(base=>({ ...base, entries: base.entries.filter(e=>e.id!==id) }));
+  const requestDeleteDevice = (id) => setPendingDeleteDevice(id);
+  const confirmDeleteDevice = () => { const id = pendingDeleteDevice; setPendingDeleteDevice(null); if (id) deleteDevice(id); };
+
+  const addEntry = (entry) => { persist(base=>({ ...base, entries:[...base.entries, entry] })); pushToast("Reading saved"); };
+  const editEntry = (updated) => { persist(base=>({ ...base, entries: base.entries.map(e=>e.id===updated.id?updated:e) })); pushToast("Changes saved"); };
+  const deleteEntry = (id) => { persist(base=>({ ...base, entries: base.entries.filter(e=>e.id!==id) })); pushToast("Reading deleted", { icon:"trash2", color:C.red }); };
+  const requestDeleteEntry = (id) => setPendingDeleteEntry(id);
+  const confirmDeleteEntry = () => { const id = pendingDeleteEntry; setPendingDeleteEntry(null); if (id) deleteEntry(id); };
+
   const restoreFromBackup = (parsed) => {
     const cleanDevices=(Array.isArray(parsed.devices)?parsed.devices:[]).filter(isUsableDevice).map(sanitizeDevice);
     const cleanEntries=(Array.isArray(parsed.entries)?parsed.entries:[]).filter(isUsableEntry).map(sanitizeEntry);
     persist(()=>({ devices:cleanDevices, entries:cleanEntries }));
     if (cleanDevices.length) setSelectedDeviceId(cleanDevices[0].id);
+    pushToast("Backup restored");
   };
 
   const selectedDevice = data.devices.find(d=>d.id===selectedDeviceId) || null;
   const deviceEntries = useMemo(() => data.entries.filter(e=>e.deviceId===selectedDeviceId).sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp)), [data.entries, selectedDeviceId]);
   const health = useMemo(() => selectedDevice ? computeHealth(deviceEntries, selectedDevice.ratedCapacity) : null, [deviceEntries, selectedDevice]);
 
-  if (!loaded) return <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", color:C.textMuted, fontFamily:"'Inter',sans-serif" }}>Loading…</div>;
+  if (!loaded) return <DashboardSkeleton/>;
 
   return (
     <div style={{ minHeight:"100vh", color:C.text, fontFamily:"'Inter',sans-serif", background:`radial-gradient(900px circle at 15% -8%, rgba(69,217,195,0.07), transparent 55%), radial-gradient(700px circle at 100% 0%, rgba(108,155,240,0.06), transparent 50%), ${C.bg}` }}>
@@ -867,7 +1021,7 @@ function BatteryTracker({ user, onSignOut }){
 
           <div style={{ padding:16, maxWidth:720, margin:"0 auto", paddingBottom:90 }}>
             {tab==="dashboard" && <Dashboard device={selectedDevice} entries={deviceEntries} health={health}/>}
-            {tab==="log" && <LogTab entries={deviceEntries} onDelete={deleteEntry} onEdit={setEditingEntry}/>}
+            {tab==="log" && <LogTab entries={deviceEntries} onDelete={requestDeleteEntry} onEdit={setEditingEntry}/>}
             {tab==="compare" && <CompareTab devices={data.devices} entries={data.entries} onSelect={(id)=>{ setSelectedDeviceId(id); setTab("dashboard"); }}/>}
           </div>
 
@@ -880,8 +1034,17 @@ function BatteryTracker({ user, onSignOut }){
       {showDeviceForm && <DeviceForm onClose={()=>setShowDeviceForm(false)} onSave={(d)=>{ addDevice(d); setShowDeviceForm(false); }}/>}
       {showEntryForm && selectedDevice && <EntryForm deviceId={selectedDevice.id} lastEntry={deviceEntries[deviceEntries.length-1]} onClose={()=>setShowEntryForm(false)} onSave={(e)=>{ addEntry(e); setShowEntryForm(false); }}/>}
       {editingEntry && <EntryForm deviceId={editingEntry.deviceId} existingEntry={editingEntry} onClose={()=>setEditingEntry(null)} onSave={(e)=>{ editEntry(e); setEditingEntry(null); }}/>}
-      {showDevicePicker && <DevicePicker devices={data.devices} selectedId={selectedDeviceId} onSelect={(id)=>{ setSelectedDeviceId(id); setShowDevicePicker(false); }} onAdd={()=>{ setShowDevicePicker(false); setShowDeviceForm(true); }} onDelete={deleteDevice} onClose={()=>setShowDevicePicker(false)}/>}
+      {showDevicePicker && <DevicePicker devices={data.devices} selectedId={selectedDeviceId} onSelect={(id)=>{ setSelectedDeviceId(id); setShowDevicePicker(false); }} onAdd={()=>{ setShowDevicePicker(false); setShowDeviceForm(true); }} onDelete={requestDeleteDevice} onClose={()=>setShowDevicePicker(false)}/>}
       {showBackup && <BackupModal data={data} onClose={()=>setShowBackup(false)} onRestore={restoreFromBackup}/>}
+      {pendingDeleteEntry && (
+        <ConfirmDialog title="Delete this reading?" message="This removes it permanently from your log and health calculations. This can't be undone."
+          confirmLabel="Delete reading" onConfirm={confirmDeleteEntry} onCancel={()=>setPendingDeleteEntry(null)}/>
+      )}
+      {pendingDeleteDevice && (
+        <ConfirmDialog title="Delete this device?" message="This removes the device and every reading logged for it. This can't be undone."
+          confirmLabel="Delete device" onConfirm={confirmDeleteDevice} onCancel={()=>setPendingDeleteDevice(null)}/>
+      )}
+      <ToastStack toasts={toasts}/>
     </div>
   );
 }
@@ -1023,30 +1186,41 @@ function MiniRow({ entry }){
 function LogTab({ entries, onDelete, onEdit }){
   const reversed = [...entries].reverse();
   if (!reversed.length) return <EmptyChart text="No readings logged yet. Tap the + button to add your first one."/>;
+  let lastDay = null;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-      {reversed.map(e=>(
-        <Panel key={e.id} style={{ padding:12, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${e.charging?C.teal:C.borderSoft}` }}>
-          <div style={{ width:40, height:40, borderRadius:10, background:C.panel2, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-            <Icon name={e.charging?"batteryCharging":"battery"} size={18} color={e.charging?C.teal:C.textMuted}/>
-          </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
-              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:16, fontWeight:600 }}>{e.percentage}%</span>
-              <span style={{ fontSize:11.5, color:C.textFaint }}>{fmtDate(e.timestamp)}</span>
-            </div>
-            <div style={{ display:"flex", gap:10, marginTop:3, flexWrap:"wrap" }}>
-              {e.charging && <Tag text="charging"/>}
-              {e.screenOnTime!=null && <Tag icon="clock" text={`${e.screenOnTime}h SOT`}/>}
-              {e.temperature!=null && <Tag icon="thermometer" text={`${e.temperature}°C`}/>}
-              {e.reportedHealth!=null && <Tag text={`OS health ${e.reportedHealth}%`}/>}
-              {e.note && <Tag text={e.note}/>}
-            </div>
-          </div>
-          <button onClick={()=>onEdit(e)} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", padding:6, flexShrink:0 }}><Icon name="edit" size={15}/></button>
-          <button onClick={()=>onDelete(e.id)} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", padding:6, flexShrink:0 }}><Icon name="trash2" size={15}/></button>
-        </Panel>
-      ))}
+      {reversed.map(e=>{
+        const label = dayLabel(e.timestamp);
+        const showSeparator = label !== lastDay;
+        lastDay = label;
+        return (
+          <React.Fragment key={e.id}>
+            {showSeparator && (
+              <div style={{ fontSize:11.5, fontWeight:600, color:C.textFaint, letterSpacing:0.4, margin:"10px 2px 0", textTransform:"uppercase" }}>{label}</div>
+            )}
+            <Panel style={{ padding:12, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${e.charging?C.teal:C.borderSoft}` }}>
+              <div style={{ width:40, height:40, borderRadius:10, background:C.panel2, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <Icon name={e.charging?"batteryCharging":"battery"} size={18} color={e.charging?C.teal:C.textMuted}/>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:16, fontWeight:600 }}>{e.percentage}%</span>
+                  <span style={{ fontSize:11.5, color:C.textFaint }}>{fmtDate(e.timestamp)}</span>
+                </div>
+                <div style={{ display:"flex", gap:10, marginTop:3, flexWrap:"wrap" }}>
+                  {e.charging && <Tag text="charging"/>}
+                  {e.screenOnTime!=null && <Tag icon="clock" text={`${e.screenOnTime}h SOT`}/>}
+                  {e.temperature!=null && <Tag icon="thermometer" text={`${e.temperature}°C`}/>}
+                  {e.reportedHealth!=null && <Tag text={`OS health ${e.reportedHealth}%`}/>}
+                  {e.note && <Tag text={e.note}/>}
+                </div>
+              </div>
+              <button onClick={()=>onEdit(e)} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", padding:6, flexShrink:0 }}><Icon name="edit" size={15}/></button>
+              <button onClick={()=>onDelete(e.id)} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", padding:6, flexShrink:0 }}><Icon name="trash2" size={15}/></button>
+            </Panel>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }
