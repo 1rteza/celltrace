@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<title>CellTrace</title>
+<title>CellTracer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230B0D11'/%3E%3Cpolygon points='13,3 5,14 11,14 10,21 19,10 13,10' fill='%2345D9C3'/%3E%3C/svg%3E" />
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -637,6 +637,15 @@ function SectionTitle({ icon, children }){
 function EmptyChart({ text }){ return <div style={{ padding:"30px 4px", color:C.textFaint, fontSize:12.5, textAlign:"center" }}>{text}</div>; }
 function Tag({ icon, text }){ return <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, color:C.textMuted, background:C.panel2, borderRadius:6, padding:"2px 7px" }}>{icon && <Icon name={icon} size={10}/>}{text}</span>; }
 
+function Footer({ onShowPrivacy }){
+  return (
+    <div style={{ textAlign:"center", padding:"28px 16px 16px", display:"flex", flexDirection:"column", gap:6 }}>
+      <button onClick={onShowPrivacy} style={{ background:"none", border:"none", color:C.textFaint, fontSize:11.5, cursor:"pointer", textDecoration:"underline", margin:"0 auto" }}>Privacy & terms</button>
+      <span style={{ fontSize:11, color:C.textFaint, opacity:0.7 }}>© {new Date().getFullYear()} CellTracer</span>
+    </div>
+  );
+}
+
 function Skeleton({ width="100%", height=14, radius=8, style }){
   return <div style={{ width, height, borderRadius:radius, background:`linear-gradient(90deg, ${C.panel2} 25%, ${C.border} 37%, ${C.panel2} 63%)`, backgroundSize:"400% 100%", animation:"shimmer 1.4s ease infinite", ...style }}/>;
 }
@@ -698,7 +707,7 @@ function PrivacyModal({ onClose }){
   return (
     <Modal title="Privacy & terms" onClose={onClose}>
       <div style={{ display:"flex", flexDirection:"column", gap:14, fontSize:13, color:C.textMuted, lineHeight:1.6 }}>
-        <p>CellTrace is a small independent project, not a company product. Here's a plain-language summary of how it handles your data — not a formal legal document.</p>
+        <p>CellTracer is a small independent project, not a company product. Here's a plain-language summary of how it handles your data — not a formal legal document.</p>
         <div>
           <div style={{ color:C.text, fontWeight:600, fontSize:13, marginBottom:4 }}>What's stored</div>
           Your Google account email (for sign-in only), the device names and capacities you add, and the battery readings you log — timestamp, percentage, and any optional notes you write in.
@@ -779,7 +788,7 @@ function LoginScreen(){
         <div style={{ width:52, height:52, borderRadius:14, margin:"0 auto 18px", background:`linear-gradient(135deg, ${C.tealDim}, ${C.panel2})`, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <svg width="26" height="26" viewBox="0 0 24 24"><polygon points="13,2 3,14 10,14 9,22 21,8 12,8" fill={C.teal}/></svg>
         </div>
-        <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:22, fontWeight:700, letterSpacing:0.5, marginBottom:6 }}>CELLTRACE</div>
+        <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:22, fontWeight:700, letterSpacing:0.5, marginBottom:6 }}>CELLTRACER</div>
         <p style={{ fontSize:13, color:C.textMuted, marginBottom:20, lineHeight:1.5 }}>Track how your phone's battery is really aging — logged by you, analyzed automatically.</p>
 
         <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24, textAlign:"left" }}>
@@ -874,6 +883,7 @@ function BatteryTracker({ user, onSignOut }){
   const [editingEntry, setEditingEntry] = useState(null);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle");
   const [cloudStatus, setCloudStatus] = useState("idle"); // idle | syncing | synced | offline | error
   const [toasts, setToasts] = useState([]);
@@ -988,46 +998,59 @@ function BatteryTracker({ user, onSignOut }){
 
   return (
     <div style={{ minHeight:"100vh", color:C.text, fontFamily:"'Inter',sans-serif", background:`radial-gradient(900px circle at 15% -8%, rgba(69,217,195,0.07), transparent 55%), radial-gradient(700px circle at 100% 0%, rgba(108,155,240,0.06), transparent 50%), ${C.bg}` }}>
-      <div style={{ borderBottom:`1px solid ${C.border}`, padding:"16px 18px", position:"sticky", top:0, zIndex:10, background:"rgba(11,13,17,0.82)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:26, height:26, borderRadius:8, background:`linear-gradient(135deg, ${C.tealDim}, ${C.panel2})`, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ borderBottom:`1px solid ${C.border}`, padding:"14px 16px 12px", position:"sticky", top:0, zIndex:10, background:"rgba(11,13,17,0.82)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+            <div style={{ width:26, height:26, borderRadius:8, background:`linear-gradient(135deg, ${C.tealDim}, ${C.panel2})`, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
               <svg width="14" height="14" viewBox="0 0 24 24"><polygon points="13,2 3,14 10,14 9,22 21,8 12,8" fill={C.teal}/></svg>
             </div>
-            <span style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:18, fontWeight:700, letterSpacing:0.5 }}>CELLTRACE</span>
+            <span style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:17, fontWeight:700, letterSpacing:0.4, whiteSpace:"nowrap" }}>CELLTRACER</span>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <button onClick={()=>setShowDevicePicker(true)} style={{ display:"flex", alignItems:"center", gap:6, background:C.panel2, border:`1px solid ${C.border}`, borderRadius:9, padding:"7px 11px", color:C.text, cursor:"pointer", fontSize:13 }}>
-              <Icon name="smartphone" size={14} color={C.textMuted}/>{selectedDevice ? selectedDevice.name : "No device"}<Icon name="chevronDown" size={14} color={C.textMuted}/>
-            </button>
-            <button onClick={()=>setShowBackup(true)} title="Backup & restore" style={{ background:"none", border:"none", cursor:"pointer", padding:6, color:C.textMuted, display:"flex" }}><Icon name="settings" size={16}/></button>
-            <button onClick={onSignOut} title={`Sign out (${user.email||""})`} style={{ background:"none", border:"none", cursor:"pointer", padding:6, color:C.textMuted, display:"flex" }}><Icon name="logout" size={16}/></button>
+          <div style={{ display:"flex", alignItems:"center", gap:2, flexShrink:0 }}>
+            <button onClick={()=>setShowBackup(true)} title="Backup & restore" style={{ background:"none", border:"none", cursor:"pointer", padding:8, color:C.textMuted, display:"flex" }}><Icon name="settings" size={17}/></button>
+            <button onClick={onSignOut} title={`Sign out (${user.email||""})`} style={{ background:"none", border:"none", cursor:"pointer", padding:8, color:C.textMuted, display:"flex" }}><Icon name="logout" size={17}/></button>
           </div>
         </div>
+        <button onClick={()=>setShowDevicePicker(true)} style={{ display:"flex", alignItems:"center", gap:7, width:"100%", background:C.panel2, border:`1px solid ${C.border}`, borderRadius:10, padding:"9px 12px", color:C.text, cursor:"pointer", fontSize:13.5 }}>
+          <Icon name="smartphone" size={14} color={C.textMuted}/>
+          <span style={{ flex:1, textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{selectedDevice ? selectedDevice.name : "No device"}</span>
+          <Icon name="chevronDown" size={14} color={C.textMuted}/>
+        </button>
         <SyncIndicator status={syncStatus} cloudStatus={cloudStatus}/>
       </div>
 
       {!selectedDevice ? (
-        <EmptyState onAddDevice={()=>setShowDeviceForm(true)}/>
+        <>
+          <EmptyState onAddDevice={()=>setShowDeviceForm(true)}/>
+          <div style={{ maxWidth:720, margin:"0 auto", padding:"0 16px" }}>
+            <Footer onShowPrivacy={()=>setShowPrivacy(true)}/>
+          </div>
+        </>
       ) : (
         <>
-          <div style={{ display:"flex", gap:3, margin:"14px 14px 0", padding:4, borderRadius:13, background:C.panel, border:`1px solid ${C.border}` }}>
-            {[["dashboard","Dashboard","activity"],["log","Log","clock"],["compare","Compare","layers"]].map(([key,label,icon])=>(
-              <button key={key} onClick={()=>setTab(key)} style={{ flex:1, background: tab===key?C.panel2:"transparent", border: tab===key?`1px solid ${C.border}`:"1px solid transparent", cursor:"pointer", borderRadius:10, padding:"8px 10px", display:"flex", alignItems:"center", justifyContent:"center", gap:6, color: tab===key?C.teal:C.textMuted, fontSize:13, fontWeight:600, transition:"background .15s, color .15s" }}>
-                <Icon name={icon} size={14}/>{label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ padding:16, maxWidth:720, margin:"0 auto", paddingBottom:90 }}>
+          <div style={{ padding:16, maxWidth:720, margin:"0 auto", paddingBottom:8 }}>
             {tab==="dashboard" && <Dashboard device={selectedDevice} entries={deviceEntries} health={health}/>}
             {tab==="log" && <LogTab entries={deviceEntries} onDelete={requestDeleteEntry} onEdit={setEditingEntry}/>}
             {tab==="compare" && <CompareTab devices={data.devices} entries={data.entries} onSelect={(id)=>{ setSelectedDeviceId(id); setTab("dashboard"); }}/>}
           </div>
 
-          <button onClick={()=>setShowEntryForm(true)} style={{ position:"fixed", bottom:22, right:22, width:54, height:54, borderRadius:"50%", background:C.teal, border:"none", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 6px 20px rgba(69,217,195,0.35)", cursor:"pointer", zIndex:20 }}>
+          <div style={{ maxWidth:720, margin:"0 auto", padding:"0 16px 110px" }}>
+            <Footer onShowPrivacy={()=>setShowPrivacy(true)}/>
+          </div>
+
+          <button onClick={()=>setShowEntryForm(true)} style={{ position:"fixed", bottom:78, right:18, width:54, height:54, borderRadius:"50%", background:C.teal, border:"none", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 6px 20px rgba(69,217,195,0.35)", cursor:"pointer", zIndex:25 }}>
             <Icon name="plus" size={24} color="#06231F"/>
           </button>
+
+          <div style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:20, padding:"0 14px 14px", background:"linear-gradient(to top, rgba(11,13,17,0.95) 60%, transparent)" }}>
+            <div style={{ display:"flex", gap:3, padding:4, borderRadius:15, background:C.panel, border:`1px solid ${C.border}`, boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
+              {[["dashboard","Dashboard","activity"],["log","Log","clock"],["compare","Compare","layers"]].map(([key,label,icon])=>(
+                <button key={key} onClick={()=>setTab(key)} style={{ flex:1, background: tab===key?C.panel2:"transparent", border: tab===key?`1px solid ${C.border}`:"1px solid transparent", cursor:"pointer", borderRadius:11, padding:"9px 10px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, color: tab===key?C.teal:C.textMuted, fontSize:11, fontWeight:600, transition:"background .15s, color .15s" }}>
+                  <Icon name={icon} size={16}/>{label}
+                </button>
+              ))}
+            </div>
+          </div>
         </>
       )}
 
@@ -1036,6 +1059,7 @@ function BatteryTracker({ user, onSignOut }){
       {editingEntry && <EntryForm deviceId={editingEntry.deviceId} existingEntry={editingEntry} onClose={()=>setEditingEntry(null)} onSave={(e)=>{ editEntry(e); setEditingEntry(null); }}/>}
       {showDevicePicker && <DevicePicker devices={data.devices} selectedId={selectedDeviceId} onSelect={(id)=>{ setSelectedDeviceId(id); setShowDevicePicker(false); }} onAdd={()=>{ setShowDevicePicker(false); setShowDeviceForm(true); }} onDelete={requestDeleteDevice} onClose={()=>setShowDevicePicker(false)}/>}
       {showBackup && <BackupModal data={data} onClose={()=>setShowBackup(false)} onRestore={restoreFromBackup}/>}
+      {showPrivacy && <PrivacyModal onClose={()=>setShowPrivacy(false)}/>}
       {pendingDeleteEntry && (
         <ConfirmDialog title="Delete this reading?" message="This removes it permanently from your log and health calculations. This can't be undone."
           confirmLabel="Delete reading" onConfirm={confirmDeleteEntry} onCancel={()=>setPendingDeleteEntry(null)}/>
@@ -1183,13 +1207,64 @@ function MiniRow({ entry }){
   );
 }
 
+function SwipeableRow({ children, onEdit, onDelete, hint }){
+  const ACTION_WIDTH = 132;
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startXRef = useRef(0);
+  const startDragXRef = useRef(0);
+
+  useEffect(() => {
+    if (!hint) return;
+    const t1 = setTimeout(()=>setDragX(-38), 600);
+    const t2 = setTimeout(()=>setDragX(0), 1000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [hint]);
+
+  const clamp = (x) => Math.max(-ACTION_WIDTH, Math.min(0, x));
+
+  const onPointerDown = (e) => {
+    startXRef.current = e.clientX;
+    startDragXRef.current = dragX;
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    setDragX(clamp(startDragXRef.current + (e.clientX - startXRef.current)));
+  };
+  const endDrag = () => {
+    setDragging(false);
+    setDragX(x => (x < -ACTION_WIDTH/2 ? -ACTION_WIDTH : 0));
+  };
+
+  return (
+    <div style={{ position:"relative", overflow:"hidden", borderRadius:14 }}>
+      <div style={{ position:"absolute", top:0, right:0, bottom:0, display:"flex" }}>
+        <button onClick={()=>{ onEdit(); setDragX(0); }} style={{ width:66, background:C.blue, border:"none", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, cursor:"pointer" }}>
+          <Icon name="edit" size={16} color="#0B1620"/><span style={{ fontSize:10, fontWeight:600, color:"#0B1620" }}>Edit</span>
+        </button>
+        <button onClick={onDelete} style={{ width:66, background:C.red, border:"none", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, cursor:"pointer" }}>
+          <Icon name="trash2" size={16} color="#2A0A0D"/><span style={{ fontSize:10, fontWeight:600, color:"#2A0A0D" }}>Delete</span>
+        </button>
+      </div>
+      <div
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}
+        style={{ transform:`translateX(${dragX}px)`, transition: dragging?"none":"transform .3s cubic-bezier(.2,.8,.2,1)", touchAction:"pan-y", position:"relative", cursor:"grab" }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function LogTab({ entries, onDelete, onEdit }){
   const reversed = [...entries].reverse();
   if (!reversed.length) return <EmptyChart text="No readings logged yet. Tap the + button to add your first one."/>;
   let lastDay = null;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-      {reversed.map(e=>{
+      {reversed.map((e, i)=>{
         const label = dayLabel(e.timestamp);
         const showSeparator = label !== lastDay;
         lastDay = label;
@@ -1198,26 +1273,27 @@ function LogTab({ entries, onDelete, onEdit }){
             {showSeparator && (
               <div style={{ fontSize:11.5, fontWeight:600, color:C.textFaint, letterSpacing:0.4, margin:"10px 2px 0", textTransform:"uppercase" }}>{label}</div>
             )}
-            <Panel style={{ padding:12, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${e.charging?C.teal:C.borderSoft}` }}>
-              <div style={{ width:40, height:40, borderRadius:10, background:C.panel2, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <Icon name={e.charging?"batteryCharging":"battery"} size={18} color={e.charging?C.teal:C.textMuted}/>
-              </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
-                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:16, fontWeight:600 }}>{e.percentage}%</span>
-                  <span style={{ fontSize:11.5, color:C.textFaint }}>{fmtDate(e.timestamp)}</span>
+            <SwipeableRow hint={i===0} onEdit={()=>onEdit(e)} onDelete={()=>onDelete(e.id)}>
+              <Panel style={{ padding:12, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${e.charging?C.teal:C.borderSoft}` }}>
+                <div style={{ width:40, height:40, borderRadius:10, background:C.panel2, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <Icon name={e.charging?"batteryCharging":"battery"} size={18} color={e.charging?C.teal:C.textMuted}/>
                 </div>
-                <div style={{ display:"flex", gap:10, marginTop:3, flexWrap:"wrap" }}>
-                  {e.charging && <Tag text="charging"/>}
-                  {e.screenOnTime!=null && <Tag icon="clock" text={`${e.screenOnTime}h SOT`}/>}
-                  {e.temperature!=null && <Tag icon="thermometer" text={`${e.temperature}°C`}/>}
-                  {e.reportedHealth!=null && <Tag text={`OS health ${e.reportedHealth}%`}/>}
-                  {e.note && <Tag text={e.note}/>}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:16, fontWeight:600 }}>{e.percentage}%</span>
+                    <span style={{ fontSize:11.5, color:C.textFaint }}>{fmtDate(e.timestamp)}</span>
+                  </div>
+                  <div style={{ display:"flex", gap:10, marginTop:3, flexWrap:"wrap" }}>
+                    {e.charging && <Tag text="charging"/>}
+                    {e.screenOnTime!=null && <Tag icon="clock" text={`${e.screenOnTime}h SOT`}/>}
+                    {e.temperature!=null && <Tag icon="thermometer" text={`${e.temperature}°C`}/>}
+                    {e.reportedHealth!=null && <Tag text={`OS health ${e.reportedHealth}%`}/>}
+                    {e.note && <Tag text={e.note}/>}
+                  </div>
                 </div>
-              </div>
-              <button onClick={()=>onEdit(e)} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", padding:6, flexShrink:0 }}><Icon name="edit" size={15}/></button>
-              <button onClick={()=>onDelete(e.id)} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", padding:6, flexShrink:0 }}><Icon name="trash2" size={15}/></button>
-            </Panel>
+                <Icon name="chevronDown" size={13} color={C.textFaint} style={{ transform:"rotate(-90deg)", flexShrink:0, opacity:0.5 }}/>
+              </Panel>
+            </SwipeableRow>
           </React.Fragment>
         );
       })}
@@ -1346,7 +1422,7 @@ function BackupModal({ data, onClose, onRestore }){
   const copy = async () => { try { await navigator.clipboard.writeText(json); setCopyState("copied"); setTimeout(()=>setCopyState("idle"),1500); } catch(e) { setCopyState("failed"); } };
 
   const [downloadUrl, setDownloadUrl] = useState(null);
-  const downloadFilename = `celltrace-backup-${new Date().toISOString().slice(0,10)}.json`;
+  const downloadFilename = `celltracer-backup-${new Date().toISOString().slice(0,10)}.json`;
 
   useEffect(() => {
     const blob = new Blob([json], { type: "application/json" });
@@ -1374,7 +1450,7 @@ function BackupModal({ data, onClose, onRestore }){
     const reader = new FileReader();
     reader.onload = () => {
       try { applyRestore(JSON.parse(reader.result)); }
-      catch(err) { setImportError("That file doesn't look like a valid CellTrace backup."); }
+      catch(err) { setImportError("That file doesn't look like a valid CellTracer backup."); }
     };
     reader.onerror = () => setImportError("Couldn't read that file — try again.");
     reader.readAsText(file);
