@@ -438,14 +438,15 @@ function trimOutliers(values){
 
 // ---- battery math --------------------------------------------------------
 const IDLE_NOTE_KEYWORDS = ["idle"]; // case-insensitive match; covers "idle training", "idle drain", "idle overnight" etc.
+const IDLE_MIN_DURATION_HOURS = 2;   // a session must span at least this long to count as a genuine idle stretch
+const IDLE_MAX_ABSOLUTE_SOT_HOURS = 0.25; // ...and screen-on-time within it must be this small in absolute terms (15 min)
 
 function classifySession(curr, durationHours){
   if (curr.sessionType) return curr.sessionType; // explicit tag always wins over inference
   if (typeof curr.screenOnTime==="number" && durationHours>0) {
+    if (durationHours>=IDLE_MIN_DURATION_HOURS && curr.screenOnTime<=IDLE_MAX_ABSOLUTE_SOT_HOURS) return "idle";
     const ratio = curr.screenOnTime/durationHours;
-    if (ratio<0.15) return "idle";
-    if (ratio<0.5) return "light";
-    return "heavy";
+    return ratio<0.5 ? "light" : "heavy";
   }
   // No screen-on-time logged for this session — nothing more reliable to go on,
   // so fall back to checking the free-text note for an explicit idle mention.

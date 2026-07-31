@@ -1,7 +1,2 @@
-[build]
-  publish = "."
-  functions = "netlify/functions"
-  command = "npm install"
-
-[functions]
-  node_bundler = "esbuild"
+node_modules/
+.netlify/
