@@ -427,6 +427,14 @@ function sanitizeDevice(d){
 
 function median(arr){ const s=[...arr].sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2? s[m] : (s[m-1]+s[m])/2; }
 function startOfPeriod(days){ if(days===Infinity) return -Infinity; const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-(days-1)); return d.getTime(); }
+function periodRange(period){
+  if (period.key==="yesterday"){
+    const end=new Date(); end.setHours(0,0,0,0);
+    const start=new Date(end); start.setDate(start.getDate()-1);
+    return [start.getTime(), end.getTime()];
+  }
+  return [startOfPeriod(period.days), Infinity];
+}
 function trimOutliers(values){
   if (values.length<6) return { keptIdx: values.map((_,i)=>i), removedCount:0 };
   const sorted=[...values].sort((a,b)=>a-b);
@@ -528,9 +536,9 @@ function computeHealth(entries, ratedCapacity){
   };
 }
 
-function periodStats(sessions, days){
-  const cutoff=startOfPeriod(days);
-  const inPeriod=sessions.filter(s=>s.valid && new Date(s.end).getTime()>=cutoff);
+function periodStats(sessions, period){
+  const [start,end]=periodRange(period);
+  const inPeriod=sessions.filter(s=>s.valid && new Date(s.end).getTime()>=start && new Date(s.end).getTime()<end);
   const cycles=inPeriod.reduce((s,x)=>s+x.drop,0)/100;
   const avgRate=inPeriod.length?median(inPeriod.map(s=>s.rate)):null;
   return { sessionCount: inPeriod.length, cycles, avgRate };
@@ -570,9 +578,11 @@ function Icon({ name, size=16, color="currentColor", style }){
 }
 
 // ---- hand-rolled charts (no external chart library) ----------------------
-function SimpleLineChart({ data, height=180, color, domain }){
+function SimpleLineChart({ data, height=180, color, domain, unit="", dateFormat }){
   if (!data || data.length < 2) return null;
   const width = 300;
+  const padLeft = 34, padBottom = 18;
+  const plotW = width - padLeft, plotH = height - padBottom;
   const xs = data.map(d=>d.x);
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const rangeX = (maxX-minX) || 1;
@@ -580,13 +590,28 @@ function SimpleLineChart({ data, height=180, color, domain }){
   const min = domain ? domain[0] : Math.min(...vals);
   const max = domain ? domain[1] : Math.max(...vals);
   const range = (max-min) || 1;
-  const pts = data.map(d=>[ ((d.x-minX)/rangeX)*width, height-((d.y-min)/range)*height ]);
+  const px = (x) => padLeft + ((x-minX)/rangeX)*plotW;
+  const py = (y) => ((max-y)/range)*plotH;
+  const pts = data.map(d=>[px(d.x), py(d.y)]);
   const line = pts.map(p=>p.join(",")).join(" ");
+  const last = data[data.length-1];
+  const lastPt = pts[pts.length-1];
+  const fmtVal = (v) => `${Math.round(v*10)/10}${unit}`;
+  const fmtDate = dateFormat || ((x) => new Date(x).toLocaleDateString(undefined,{month:"short",day:"numeric"}));
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ width:"100%", height }}>
-      {[0,0.25,0.5,0.75,1].map((f,i)=><line key={i} x1={0} x2={width} y1={height*f} y2={height*f} stroke={C.borderSoft} strokeDasharray="3 3"/>)}
+    <svg viewBox={`0 0 ${width} ${height+4}`} style={{ width:"100%", height:height+4, overflow:"visible" }}>
+      {[0,0.25,0.5,0.75,1].map((f,i)=>(
+        <g key={i}>
+          <line x1={padLeft} x2={width} y1={plotH*f} y2={plotH*f} stroke={C.borderSoft} strokeDasharray="3 3"/>
+          <text x={padLeft-6} y={plotH*f+3} fontSize="8.5" fill={C.textFaint} textAnchor="end">{fmtVal(max-(max-min)*f)}</text>
+        </g>
+      ))}
       <polyline points={line} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke"/>
       {pts.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r="2.5" fill={color}/>)}
+      <circle cx={lastPt[0]} cy={lastPt[1]} r="4" fill={color} stroke={C.panel} strokeWidth="1.5"/>
+      <text x={Math.min(lastPt[0], width-4)} y={Math.max(lastPt[1]-9, 9)} fontSize="10.5" fontWeight="700" fill={color} textAnchor="end">{fmtVal(last.y)}</text>
+      <text x={padLeft} y={height+2} fontSize="8.5" fill={C.textFaint} textAnchor="start">{fmtDate(minX)}</text>
+      <text x={width} y={height+2} fontSize="8.5" fill={C.textFaint} textAnchor="end">{fmtDate(maxX)}</text>
     </svg>
   );
 }
@@ -604,6 +629,7 @@ function SimpleBarChart({ data, height=160 }){
         const color = d.value>=90?C.teal:d.value>=75?C.amber:C.red;
         return (
           <g key={i}>
+            <text x={x+barW/2} y={y-6} fontSize="10.5" fontWeight="700" fill={color} textAnchor="middle">{d.value}%</text>
             <rect x={x} y={y} width={barW} height={h} rx="5" fill={color}/>
             <text x={x+barW/2} y={height+14} fontSize="9" fill={C.textFaint} textAnchor="middle">{d.label}</text>
           </g>
@@ -702,6 +728,53 @@ function Footer({ onShowPrivacy }){
     <div style={{ textAlign:"center", padding:"28px 16px 16px", display:"flex", flexDirection:"column", gap:6 }}>
       <button onClick={onShowPrivacy} style={{ background:"none", border:"none", color:C.textFaint, fontSize:11.5, cursor:"pointer", textDecoration:"underline", margin:"0 auto" }}>Privacy & terms</button>
       <span style={{ fontSize:11, color:C.textFaint, opacity:0.7 }}>© {new Date().getFullYear()} CellTracer</span>
+    </div>
+  );
+}
+
+function AboutScreen({ onEnterApp, onShowPrivacy }){
+  const tips = [
+    "Log right after unplugging, and again after a stretch of use — the gap between two readings is what actually gets measured.",
+    "Overnight or idle stretches (phone barely touched) are the most valuable readings — they give the clearest signal, free of noise from how you were using the phone.",
+    "The more you log, especially idle sessions, the more the estimate can lean on reliable data instead of a rough blend.",
+  ];
+  return (
+    <div style={{ maxWidth:720, margin:"0 auto", padding:"20px 16px 40px" }}>
+      <Panel style={{ padding:22 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+          <div style={{ width:36, height:36, borderRadius:10, background:`linear-gradient(135deg, ${C.tealDim}, ${C.panel2})`, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+            <svg width="19" height="19" viewBox="0 0 24 24"><polygon points="13,2 3,14 10,14 9,22 21,8 12,8" fill={C.teal}/></svg>
+          </div>
+          <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:20, fontWeight:700, margin:0 }}>What is CellTracer?</h2>
+        </div>
+        <p style={{ fontSize:13.5, color:C.textMuted, lineHeight:1.6, margin:"0 0 14px" }}>
+          CellTracer is a personal battery-health tracker. You log your battery percentage over time — no special hardware or root access needed — and it estimates how much your battery has worn down, synced across every device you're signed into.
+        </p>
+        <h3 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:14.5, fontWeight:600, margin:"18px 0 8px", color:C.text }}>How it estimates health</h3>
+        <p style={{ fontSize:13.5, color:C.textMuted, lineHeight:1.6, margin:"0 0 14px" }}>
+          Every phone's battery drains a little faster as it wears down. CellTracer looks at how fast yours has been draining recently and compares that to older readings — the same basic idea phone manufacturers use for their own "battery health" number, just built from patterns you log instead of an internal sensor. It pays extra attention to idle/overnight readings specifically, since those aren't muddied by however you happened to be using the phone that day.
+        </p>
+        <h3 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:14.5, fontWeight:600, margin:"18px 0 8px", color:C.text }}>Getting a reliable number</h3>
+        <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
+          {tips.map((t,i)=>(
+            <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+              <div style={{ width:20, height:20, borderRadius:"50%", background:C.panel2, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>
+                <span style={{ fontSize:10.5, color:C.teal, fontWeight:700 }}>{i+1}</span>
+              </div>
+              <span style={{ fontSize:13, color:C.textMuted, lineHeight:1.5 }}>{t}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding:"12px 14px", borderRadius:10, background:"rgba(240,169,62,0.08)", border:`1px solid ${C.amberDim}`, marginBottom:20 }}>
+          <p style={{ fontSize:12, color:C.textMuted, margin:0, lineHeight:1.55 }}>
+            <strong style={{ color:C.amber }}>Worth knowing:</strong> this is an estimate built entirely from what you log — not a manufacturer measurement or a lab test. No app on an unrooted phone can directly read true battery capacity. Treat the number as a helpful trend indicator, not a diagnostic fact.
+          </p>
+        </div>
+        <Button onClick={onEnterApp} style={{ width:"100%", justifyContent:"center" }}>
+          <Icon name="activity" size={15}/> View dashboard
+        </Button>
+      </Panel>
+      <Footer onShowPrivacy={onShowPrivacy}/>
     </div>
   );
 }
@@ -938,6 +1011,7 @@ function BatteryTracker({ user, onSignOut }){
   const [loaded, setLoaded] = useState(false);
   const [selectedDeviceId, setSelectedDeviceId] = useState(null);
   const [tab, setTab] = useState("dashboard");
+  const [view, setView] = useState("home"); // "home" | "app"
   const [showDeviceForm, setShowDeviceForm] = useState(false);
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
@@ -1068,26 +1142,30 @@ function BatteryTracker({ user, onSignOut }){
     <div style={{ minHeight:"100vh", color:C.text, fontFamily:"'Inter',sans-serif", background:`radial-gradient(900px circle at 15% -8%, rgba(69,217,195,0.07), transparent 55%), radial-gradient(700px circle at 100% 0%, rgba(108,155,240,0.06), transparent 50%), ${C.bg}` }}>
       <div style={{ borderBottom:`1px solid ${C.border}`, padding:"14px 16px 12px", position:"sticky", top:0, zIndex:10, background:"rgba(11,13,17,0.82)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+          <button onClick={()=>setView("home")} style={{ display:"flex", alignItems:"center", gap:8, minWidth:0, background:"none", border:"none", cursor:"pointer", padding:0 }}>
             <div style={{ width:26, height:26, borderRadius:8, background:`linear-gradient(135deg, ${C.tealDim}, ${C.panel2})`, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
               <svg width="14" height="14" viewBox="0 0 24 24"><polygon points="13,2 3,14 10,14 9,22 21,8 12,8" fill={C.teal}/></svg>
             </div>
-            <span style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:17, fontWeight:700, letterSpacing:0.4, whiteSpace:"nowrap" }}>CELLTRACER</span>
-          </div>
+            <span style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:17, fontWeight:700, letterSpacing:0.4, whiteSpace:"nowrap", color:C.text }}>CELLTRACER</span>
+          </button>
           <div style={{ display:"flex", alignItems:"center", gap:2, flexShrink:0 }}>
             <button onClick={()=>setShowBackup(true)} title="Backup & restore" style={{ background:"none", border:"none", cursor:"pointer", padding:8, color:C.textMuted, display:"flex" }}><Icon name="settings" size={17}/></button>
             <button onClick={()=>setPendingSignOut(true)} title={`Sign out (${user.email||""})`} style={{ background:"none", border:"none", cursor:"pointer", padding:8, color:C.textMuted, display:"flex" }}><Icon name="logout" size={17}/></button>
           </div>
         </div>
-        <button onClick={()=>setShowDevicePicker(true)} style={{ display:"flex", alignItems:"center", gap:7, width:"100%", background:C.panel2, border:`1px solid ${C.border}`, borderRadius:10, padding:"9px 12px", color:C.text, cursor:"pointer", fontSize:13.5 }}>
-          <Icon name="smartphone" size={14} color={C.textMuted}/>
-          <span style={{ flex:1, textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{selectedDevice ? selectedDevice.name : "No device"}</span>
-          <Icon name="chevronDown" size={14} color={C.textMuted}/>
-        </button>
-        <SyncIndicator status={syncStatus} cloudStatus={cloudStatus}/>
+        {view==="app" && (<>
+          <button onClick={()=>setShowDevicePicker(true)} style={{ display:"flex", alignItems:"center", gap:7, width:"100%", background:C.panel2, border:`1px solid ${C.border}`, borderRadius:10, padding:"9px 12px", color:C.text, cursor:"pointer", fontSize:13.5 }}>
+            <Icon name="smartphone" size={14} color={C.textMuted}/>
+            <span style={{ flex:1, textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{selectedDevice ? selectedDevice.name : "No device"}</span>
+            <Icon name="chevronDown" size={14} color={C.textMuted}/>
+          </button>
+          <SyncIndicator status={syncStatus} cloudStatus={cloudStatus}/>
+        </>)}
       </div>
 
-      {!selectedDevice ? (
+      {view==="home" && <AboutScreen onEnterApp={()=>setView("app")} onShowPrivacy={()=>setShowPrivacy(true)}/>}
+
+      {view==="app" && (!selectedDevice ? (
         <>
           <EmptyState onAddDevice={()=>setShowDeviceForm(true)}/>
           <div style={{ maxWidth:720, margin:"0 auto", padding:"0 16px" }}>
@@ -1132,7 +1210,7 @@ function BatteryTracker({ user, onSignOut }){
             </div>
           )}
         </>
-      )}
+      ))}
 
       {showDeviceForm && <DeviceForm onClose={()=>setShowDeviceForm(false)} onSave={(d)=>{ addDevice(d); setShowDeviceForm(false); }}/>}
       {showEntryForm && selectedDevice && <EntryForm deviceId={selectedDevice.id} lastEntry={deviceEntries[deviceEntries.length-1]} onClose={()=>setShowEntryForm(false)} onSave={(e)=>{ addEntry(e); setShowEntryForm(false); }}/>}
@@ -1182,7 +1260,7 @@ function EmptyState({ onAddDevice }){
   );
 }
 
-const PERIODS = [ { key:"today", label:"Today", days:1 }, { key:"week", label:"Last 7 days", days:7 }, { key:"month", label:"Last 30 days", days:30 }, { key:"all", label:"All time", days:Infinity } ];
+const PERIODS = [ { key:"today", label:"Today", days:1 }, { key:"yesterday", label:"Yesterday", days:1 }, { key:"week", label:"Last 7 days", days:7 }, { key:"month", label:"Last 30 days", days:30 }, { key:"all", label:"All time", days:Infinity } ];
 
 function Dashboard({ device, entries, health }){
   const chartData = entries.map(e => ({ x: new Date(e.timestamp).getTime(), y: e.percentage }));
@@ -1234,12 +1312,12 @@ function Dashboard({ device, entries, health }){
 
       <Panel style={{ padding:"16px 16px 8px" }}>
         <SectionTitle icon="battery">Charge level over time</SectionTitle>
-        {chartData.length>1 ? <SimpleLineChart data={chartData} color={C.blue} domain={[0,100]}/> : <EmptyChart text="Log at least two readings to see a chart."/>}
+        {chartData.length>1 ? <SimpleLineChart data={chartData} color={C.blue} domain={[0,100]} unit="%"/> : <EmptyChart text="Log at least two readings to see a chart."/>}
       </Panel>
 
       <Panel style={{ padding:"16px 16px 8px" }}>
         <SectionTitle icon="activity">Drain rate trend (per session)</SectionTitle>
-        {sessionChart.length>1 ? (<><SimpleLineChart data={sessionChart} color={C.amber} height={160}/><p style={{ fontSize:11.5, color:C.textFaint, margin:"8px 0 12px" }}>A rising trend means the same charge drains faster over time — a sign of capacity fade.</p></>) : <EmptyChart text="Sessions build up as you log unplugged readings between charges."/>}
+        {sessionChart.length>1 ? (<><SimpleLineChart data={sessionChart} color={C.amber} height={160} unit="%/hr"/><p style={{ fontSize:11.5, color:C.textFaint, margin:"8px 0 12px" }}>A rising trend means the same charge drains faster over time — a sign of capacity fade.</p></>) : <EmptyChart text="Sessions build up as you log unplugged readings between charges."/>}
       </Panel>
     </div>
   );
@@ -1248,9 +1326,9 @@ function Dashboard({ device, entries, health }){
 function PeriodPanel({ entries, sessions }){
   const [periodKey, setPeriodKey] = useState("today");
   const period = PERIODS.find(p=>p.key===periodKey);
-  const cutoff = startOfPeriod(period.days);
-  const stats = periodStats(sessions, period.days);
-  const periodEntries = entries.filter(e=>new Date(e.timestamp).getTime()>=cutoff).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+  const [start,end] = periodRange(period);
+  const stats = periodStats(sessions, period);
+  const periodEntries = entries.filter(e=>{ const t=new Date(e.timestamp).getTime(); return t>=start && t<end; }).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
 
   return (
     <Panel style={{ padding:16 }}>
