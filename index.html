@@ -721,7 +721,7 @@ function SectionTitle({ icon, children }){
   return <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}><Icon name={icon} size={14} color={C.textMuted}/><span style={{ fontSize:12.5, color:C.textMuted, fontWeight:600, letterSpacing:0.3 }}>{children}</span></div>;
 }
 function EmptyChart({ text }){ return <div style={{ padding:"30px 4px", color:C.textFaint, fontSize:12.5, textAlign:"center" }}>{text}</div>; }
-function Tag({ icon, text }){ return <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, color:C.textMuted, background:C.panel2, borderRadius:6, padding:"2px 7px" }}>{icon && <Icon name={icon} size={10}/>}{text}</span>; }
+function Tag({ icon, text, color }){ return <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, color: color||C.textMuted, background: color?`${color}1A`:C.panel2, borderRadius:6, padding:"2px 7px" }}>{icon && <Icon name={icon} size={10} color={color}/>}{text}</span>; }
 
 function Footer({ onShowPrivacy }){
   return (
@@ -747,9 +747,12 @@ function AboutScreen({ onEnterApp, onShowPrivacy }){
           </div>
           <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:20, fontWeight:700, margin:0 }}>What is CellTracer?</h2>
         </div>
-        <p style={{ fontSize:13.5, color:C.textMuted, lineHeight:1.6, margin:"0 0 14px" }}>
+        <p style={{ fontSize:13.5, color:C.textMuted, lineHeight:1.6, margin:"0 0 16px" }}>
           CellTracer is a personal battery-health tracker. You log your battery percentage over time — no special hardware or root access needed — and it estimates how much your battery has worn down, synced across every device you're signed into.
         </p>
+        <Button onClick={onEnterApp} style={{ width:"100%", justifyContent:"center", marginBottom:20 }}>
+          <Icon name="activity" size={15}/> View dashboard
+        </Button>
         <h3 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:14.5, fontWeight:600, margin:"18px 0 8px", color:C.text }}>How it estimates health</h3>
         <p style={{ fontSize:13.5, color:C.textMuted, lineHeight:1.6, margin:"0 0 14px" }}>
           Every phone's battery drains a little faster as it wears down. CellTracer looks at how fast yours has been draining recently and compares that to older readings — the same basic idea phone manufacturers use for their own "battery health" number, just built from patterns you log instead of an internal sensor. It pays extra attention to idle/overnight readings specifically, since those aren't muddied by however you happened to be using the phone that day.
@@ -1186,7 +1189,7 @@ function BatteryTracker({ user, onSignOut }){
 
           <div style={{ padding:16, maxWidth:720, margin:"0 auto", paddingBottom:8 }}>
             {tab==="dashboard" && <Dashboard device={selectedDevice} entries={deviceEntries} health={health}/>}
-            {tab==="log" && <LogTab entries={deviceEntries} onDelete={requestDeleteEntry} onEdit={setEditingEntry}/>}
+            {tab==="log" && <LogTab entries={deviceEntries} sessions={health.sessions} onDelete={requestDeleteEntry} onEdit={setEditingEntry}/>}
             {tab==="compare" && <CompareTab devices={data.devices} entries={data.entries} onSelect={(id)=>{ setSelectedDeviceId(id); setTab("dashboard"); }}/>}
           </div>
 
@@ -1428,9 +1431,18 @@ function SwipeableRow({ children, onEdit, onDelete, hint }){
   );
 }
 
-function LogTab({ entries, onDelete, onEdit }){
+const INTENSITY_STYLE = {
+  idle:    { color:C.blue,  label:"idle" },
+  light:   { color:C.teal,  label:"light use" },
+  heavy:   { color:C.red,   label:"heavy use" },
+  unknown: { color:C.borderSoft, label:null },
+};
+
+function LogTab({ entries, sessions, onDelete, onEdit }){
   const reversed = [...entries].reverse();
   if (!reversed.length) return <EmptyChart text="No readings logged yet. Tap the + button to add your first one."/>;
+  const intensityById = {};
+  (sessions||[]).forEach(s=>{ if (s.id) intensityById[s.id] = s.intensity; });
   let lastDay = null;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -1438,15 +1450,18 @@ function LogTab({ entries, onDelete, onEdit }){
         const label = dayLabel(e.timestamp);
         const showSeparator = label !== lastDay;
         lastDay = label;
+        const intensity = e.charging ? null : intensityById[e.id];
+        const style = intensity ? INTENSITY_STYLE[intensity] : null;
+        const borderColor = e.charging ? C.teal : (style ? style.color : C.borderSoft);
         return (
           <React.Fragment key={e.id}>
             {showSeparator && (
               <div style={{ fontSize:11.5, fontWeight:600, color:C.textFaint, letterSpacing:0.4, margin:"10px 2px 0", textTransform:"uppercase" }}>{label}</div>
             )}
             <SwipeableRow hint={i===0} onEdit={()=>onEdit(e)} onDelete={()=>onDelete(e.id)}>
-              <Panel style={{ padding:12, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${e.charging?C.teal:C.borderSoft}` }}>
+              <Panel style={{ padding:12, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${borderColor}` }}>
                 <div style={{ width:40, height:40, borderRadius:10, background:C.panel2, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  <Icon name={e.charging?"batteryCharging":"battery"} size={18} color={e.charging?C.teal:C.textMuted}/>
+                  <Icon name={e.charging?"batteryCharging":"battery"} size={18} color={e.charging?C.teal:(style?style.color:C.textMuted)}/>
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
@@ -1455,6 +1470,7 @@ function LogTab({ entries, onDelete, onEdit }){
                   </div>
                   <div style={{ display:"flex", gap:10, marginTop:3, flexWrap:"wrap" }}>
                     {e.charging && <Tag text="charging"/>}
+                    {style && style.label && <Tag text={style.label} color={style.color}/>}
                     {e.screenOnTime!=null && <Tag icon="clock" text={`${e.screenOnTime}h SOT`}/>}
                     {e.temperature!=null && <Tag icon="thermometer" text={`${e.temperature}°C`}/>}
                     {e.reportedHealth!=null && <Tag text={`OS health ${e.reportedHealth}%`}/>}
