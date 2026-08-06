@@ -351,6 +351,8 @@ const C = {
   amber: "#F0A93E", amberDim: "#4D3D1C",
   red: "#E5626A", redDim: "#4D2226",
   blue: "#6C9BF0",
+  violet: "#A78BFA",
+  orange: "#F0803E",
 };
 
 // ---- Firebase (Google sign-in) -----------------------------------------
@@ -577,6 +579,27 @@ function Icon({ name, size=16, color="currentColor", style }){
   );
 }
 
+function batteryLevelColor(pct){
+  if (pct>=80) return C.teal;
+  if (pct>=50) return C.amber;
+  if (pct>=20) return C.orange;
+  return C.red;
+}
+
+function BatteryIcon({ percentage, charging, size=18 }){
+  const pct = Math.max(0, Math.min(100, percentage ?? 0));
+  const color = batteryLevelColor(pct);
+  const fillW = Math.max(0, 14*(pct/100));
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="6" width="18" height="12" rx="2" stroke={color} strokeWidth="2"/>
+      <line x1="22" y1="10" x2="22" y2="14" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+      {fillW>0 && <rect x="4" y="8" width={fillW} height="8" rx="1" fill={color}/>}
+      {charging && <path d="M13 7.5 L8.5 13.5 H11.3 L10 17.5 L15 11.5 H12.2 Z" fill={C.text} stroke={C.panel} strokeWidth="0.6"/>}
+    </svg>
+  );
+}
+
 // ---- hand-rolled charts (no external chart library) ----------------------
 function SimpleLineChart({ data, height=180, color, domain, unit="", dateFormat }){
   if (!data || data.length < 2) return null;
@@ -750,8 +773,8 @@ function AboutScreen({ onEnterApp, onShowPrivacy }){
         <p style={{ fontSize:13.5, color:C.textMuted, lineHeight:1.6, margin:"0 0 16px" }}>
           CellTracer is a personal battery-health tracker. You log your battery percentage over time — no special hardware or root access needed — and it estimates how much your battery has worn down, synced across every device you're signed into.
         </p>
-        <Button onClick={onEnterApp} style={{ width:"100%", justifyContent:"center", marginBottom:20 }}>
-          <Icon name="activity" size={15}/> View dashboard
+        <Button onClick={onEnterApp} variant="ghost" style={{ width:"100%", justifyContent:"center", marginBottom:20 }}>
+          <Icon name="chevronDown" size={13} style={{ transform:"rotate(-90deg)" }}/> Skip ahead to dashboard
         </Button>
         <h3 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:14.5, fontWeight:600, margin:"18px 0 8px", color:C.text }}>How it estimates health</h3>
         <p style={{ fontSize:13.5, color:C.textMuted, lineHeight:1.6, margin:"0 0 14px" }}>
@@ -784,6 +807,47 @@ function AboutScreen({ onEnterApp, onShowPrivacy }){
 
 function Skeleton({ width="100%", height=14, radius=8, style }){
   return <div style={{ width, height, borderRadius:radius, background:`linear-gradient(90deg, ${C.panel2} 25%, ${C.border} 37%, ${C.panel2} 63%)`, backgroundSize:"400% 100%", animation:"shimmer 1.4s ease infinite", ...style }}/>;
+}
+
+function HomeSkeleton(){
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg }}>
+      <div style={{ borderBottom:`1px solid ${C.border}`, padding:"14px 16px 12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <Skeleton width={26} height={26} radius={8}/>
+          <Skeleton width={110} height={16}/>
+        </div>
+        <div style={{ display:"flex", gap:10 }}>
+          <Skeleton width={18} height={18} radius={5}/>
+          <Skeleton width={18} height={18} radius={5}/>
+        </div>
+      </div>
+      <div style={{ maxWidth:720, margin:"0 auto", padding:"20px 16px 40px" }}>
+        <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:16, padding:22 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+            <Skeleton width={36} height={36} radius={10}/>
+            <Skeleton width={170} height={18}/>
+          </div>
+          <Skeleton height={12} style={{ marginBottom:8 }}/>
+          <Skeleton height={12} width="90%" style={{ marginBottom:8 }}/>
+          <Skeleton height={12} width="65%" style={{ marginBottom:20 }}/>
+          <Skeleton height={38} radius={10} style={{ marginBottom:24 }}/>
+          <Skeleton width={150} height={14} style={{ marginBottom:12 }}/>
+          <Skeleton height={12} style={{ marginBottom:8 }}/>
+          <Skeleton height={12} width="80%" style={{ marginBottom:22 }}/>
+          <Skeleton width={170} height={14} style={{ marginBottom:12 }}/>
+          {[70,58,64].map((w,i)=>(
+            <div key={i} style={{ display:"flex", gap:10, marginBottom:10, alignItems:"center" }}>
+              <Skeleton width={20} height={20} radius={999}/>
+              <Skeleton height={12} width={`${w}%`}/>
+            </div>
+          ))}
+          <Skeleton height={54} radius={10} style={{ margin:"16px 0 20px" }}/>
+          <Skeleton height={42} radius={10}/>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DashboardSkeleton(){
@@ -968,12 +1032,7 @@ function AuthGate(){
   }, []);
 
   if (authState === "loading") {
-    return (
-      <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:C.bg, gap:14 }}>
-        <Skeleton width={52} height={52} radius={14}/>
-        <Skeleton width={120} height={14}/>
-      </div>
-    );
+    return <HomeSkeleton/>;
   }
   if (authState === "signedOut") return <LoginScreen/>;
   return <BatteryTracker user={user} onSignOut={()=>firebase.auth().signOut()}/>;
@@ -1432,10 +1491,10 @@ function SwipeableRow({ children, onEdit, onDelete, hint }){
 }
 
 const INTENSITY_STYLE = {
-  idle:    { color:C.blue,  label:"idle" },
-  light:   { color:C.teal,  label:"light use" },
-  heavy:   { color:C.red,   label:"heavy use" },
-  unknown: { color:C.borderSoft, label:null },
+  idle:    { color:C.blue,   label:"idle" },
+  light:   { color:C.violet, label:"light use" },
+  heavy:   { color:C.orange, label:"heavy use" },
+  unknown: { color:C.textFaint, label:"usage unclear" },
 };
 
 function LogTab({ entries, sessions, onDelete, onEdit }){
@@ -1452,16 +1511,17 @@ function LogTab({ entries, sessions, onDelete, onEdit }){
         lastDay = label;
         const intensity = e.charging ? null : intensityById[e.id];
         const style = intensity ? INTENSITY_STYLE[intensity] : null;
-        const borderColor = e.charging ? C.teal : (style ? style.color : C.borderSoft);
+        const accentColor = e.charging ? C.teal : (style ? style.color : C.borderSoft);
+        const washColor = e.charging ? C.teal : (style ? style.color : null);
         return (
           <React.Fragment key={e.id}>
             {showSeparator && (
               <div style={{ fontSize:11.5, fontWeight:600, color:C.textFaint, letterSpacing:0.4, margin:"10px 2px 0", textTransform:"uppercase" }}>{label}</div>
             )}
             <SwipeableRow hint={i===0} onEdit={()=>onEdit(e)} onDelete={()=>onDelete(e.id)}>
-              <Panel style={{ padding:12, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${borderColor}` }}>
-                <div style={{ width:40, height:40, borderRadius:10, background:C.panel2, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  <Icon name={e.charging?"batteryCharging":"battery"} size={18} color={e.charging?C.teal:(style?style.color:C.textMuted)}/>
+              <Panel style={{ padding:12, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${accentColor}`, background: washColor ? `${washColor}20` : C.panel }}>
+                <div style={{ width:40, height:40, borderRadius:10, background: washColor ? `${washColor}30` : C.panel2, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <BatteryIcon percentage={e.percentage} charging={e.charging} size={20}/>
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
